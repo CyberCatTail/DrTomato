@@ -4,7 +4,7 @@ import torch
 from PIL import Image
 import timm
 from torchvision import transforms
-# from langchain.llms import OpenAI
+from openai import OpenAI
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -47,8 +47,22 @@ def classify(image_path):
     pred = classes[index]
     return pred
 
+client = OpenAI()
+
 def LLM(status):
-    return 'xxxx'
+    try:
+        content = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "user",
+                    "content": f"my tomato is in {status} disease, please give me suggestions"
+                }
+            ]
+        )
+        return content.choices[0].message.content
+    except Exception as e:
+        return "" 
 
 def calc(img):
     status = classify(img)
@@ -56,8 +70,11 @@ def calc(img):
         st.write("Congras, your tomato looks very healthy.")
     else:
         suggestion = LLM(status)
-        text = f"Your tomatoes are highly likely to have {status} disease. It is recommended to treat them with {suggestion}, and we also suggest consulting with our plant experts. You can reach them via email: drtomato.clinic@uwo.ca."
-        st.write(text)
+        st.write(f"Your tomatoes are highly likely to have **{status}** disease.")
+        st.write(suggestion)
+        st.write("we also suggest consulting with our plant experts. You can reach them via email: drtomato.clinic@uwo.ca.")
+        st.write("---")
+        st.write("**Disclaimer:** This recommendation is for reference only and should not be considered a substitute for professional diagnosis or treatment. Please consult a qualified expert before taking any action.")
 
 def generate_response(img):
     with st.chat_message("ai", avatar='./avator.jpeg'):
