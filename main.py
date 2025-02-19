@@ -1,11 +1,63 @@
 import streamlit as st
 import time
+import torch
+from PIL import Image
+import timm
+from torchvision import transforms
 # from langchain.llms import OpenAI
 
-def calc(img):
-    time.sleep(5)
-    st.write("Still in dev...:")
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
+model = timm.create_model(
+    "resnet50d", pretrained=True, num_classes=10, drop_path_rate=0.05)
+
+model.load_state_dict(torch.load('./model_weights.pth', map_location=device))
+
+model = model.to(device)
+model.eval()
+
+data_config = timm.data.resolve_data_config({}, model=model, verbose=True)
+data_mean = data_config["mean"]
+data_std = data_config["std"]
+
+classes = {0: 'Bacterial Spot',
+           1: 'Early Blight', 
+           2: 'Late Blight', 
+           3: 'Leaf Mold', 
+           4: 'Septoria Leaf Spot', 
+           5: 'Spider Mites Two-spotted spider mite',
+           6: 'Target Spot', 
+           7: 'Tomato Yellow Leaf Curl Virus', 
+           8: 'Tomato Mosaic Virus', 
+           9: 'Healthy'}
+
+image_size = (256, 256)
+
+transformer = transforms.Compose([transforms.Resize(image_size),
+                                  transforms.ToTensor(),
+                                  transforms.Normalize(mean=data_mean, std=data_std)])
+
+@torch.no_grad()
+def classify(image_path):
+    image = Image.open(image_path).convert('RGB')
+    image_tensor = transformer(image)
+    image_tensor.unsqueeze_(0)
+    output = model(image_tensor)
+    index = output.data.numpy().argmax()
+    pred = classes[index]
+    return pred
+
+def LLM(status):
+    return 'xxxx'
+
+def calc(img):
+    status = classify(img)
+    if status == 'Healthy':
+        st.write("Congras, your tomato looks very healthy.")
+    else:
+        suggestion = LLM(status)
+        text = f"Your tomatoes are highly likely to have {status} disease. It is recommended to treat them with {suggestion}, and we also suggest consulting with our plant experts. You can reach them via email: drtomato.clinic@uwo.ca."
+        st.write(text)
 
 def generate_response(img):
     with st.chat_message("ai", avatar='./avator.jpeg'):
@@ -17,7 +69,7 @@ def pick_img():
     "Choose a photo", type=["jpg", "jpeg", "png", "gif", "bmp"]
     )
     if uploaded_file:
-        st.session_state.img = uploaded_file.read()
+        st.session_state.img = uploaded_file
         
     picture = st.camera_input("Or take a picture")
     if picture:
